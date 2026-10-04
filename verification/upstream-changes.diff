@@ -1,0 +1,321 @@
+--- a/build.gradle
++++ b/build.gradle
+@@ -2,12 +2,10 @@
+     repositories {
+         // These repositories are only for Gradle plugins, put any other repositories in the repository block further below
+         maven { url = 'https://maven.minecraftforge.net' }
+-        maven { url = 'https://maven.parchmentmc.org' } //Parchment (Name mappings)
+         mavenCentral()
+     }
+     dependencies {
+-        classpath group: 'net.minecraftforge.gradle', name: 'ForgeGradle', version: '5.1.+', changing: true
+-        classpath 'org.parchmentmc:librarian:1.+'
++        classpath group: 'net.minecraftforge.gradle', name: 'ForgeGradle', version: '5.1.77'
+     }
+ }
+ // Only edit below this line, the above code adds and enables the necessary things for Forge to be setup.
+@@ -16,7 +14,6 @@
+     id 'maven-publish'
+ }
+ apply plugin: 'net.minecraftforge.gradle'
+-apply plugin: 'org.parchmentmc.librarian.forgegradle'
+ //apply from: 'https://raw.githubusercontent.com/SizableShrimp/ForgeUpdatesRemapper/main/remapper.gradle'
+ 
+ version = "${mod_version}"
+@@ -282,6 +279,7 @@
+ 
+ // Example for how to get properties into the manifest for reading at runtime.
+ jar {
++    from('LICENSE.txt')
+     manifest {
+         attributes([
+                 "Specification-Title"     : "laserio",
+@@ -317,3 +315,55 @@
+ tasks.withType(JavaCompile).configureEach {
+     options.encoding = 'UTF-8' // Use the UTF-8 charset for Java compilation
+ }
++
++// Standalone checks run against the packaged mod rather than dev-only classes.
++sourceSets {
++    verification {
++        java.srcDir 'verification'
++        compileClasspath += sourceSets.main.output
++    }
++}
++
++tasks.register('verifyColorCompatibility', JavaExec) {
++    group = 'verification'
++    description = 'Compare packed colors and saved ARGB values against AWT.'
++    dependsOn 'verificationClasses', 'reobfJar'
++    classpath = files(tasks.named('jar').flatMap { it.archiveFile }) + sourceSets.verification.output
++    mainClass = 'ColorCompatibilityTest'
++    jvmArgs '-Djava.awt.headless=true'
++}
++
++tasks.register('verifyNoDesktop', JavaExec) {
++    group = 'verification'
++    description = 'Initialize and restore colors without the Java desktop module.'
++    dependsOn 'verificationClasses', 'reobfJar'
++    classpath = files(tasks.named('jar').flatMap { it.archiveFile }) + sourceSets.verification.output
++    mainClass = 'NoDesktopSmokeTest'
++    jvmArgs '--limit-modules', 'java.base'
++}
++
++tasks.register('verifyHeadlessJar') {
++    group = 'verification'
++    description = 'Reject AWT/Swing references anywhere in the packaged Forge mod.'
++    dependsOn 'reobfJar'
++    doLast {
++        def artifact = tasks.named('jar').get().archiveFile.get().asFile
++        def desktopReferences = []
++        def classCount = 0
++        zipTree(artifact).matching { include '**/*.class' }.each { entry ->
++            classCount++
++            def bytecode = new String(entry.bytes, java.nio.charset.StandardCharsets.ISO_8859_1)
++            if (bytecode.contains('java/awt') || bytecode.contains('javax/swing')) {
++                desktopReferences.add(entry.name)
++            }
++        }
++        if (classCount == 0 || !desktopReferences.empty) {
++            throw new GradleException("Invalid headless jar: ${classCount} classes, desktop references ${desktopReferences}")
++        }
++        logger.lifecycle("Verified ${classCount} packaged classes: zero AWT/Swing references.")
++    }
++}
++
++tasks.named('check') {
++    dependsOn 'verifyColorCompatibility', 'verifyNoDesktop', 'verifyHeadlessJar'
++}
+--- a/gradle.properties
++++ b/gradle.properties
+@@ -3,7 +3,7 @@
+ org.gradle.jvmargs=-Xmx3G
+ org.gradle.daemon=false
+ #Mod Info
+-mod_version=1.6.8
++mod_version=1.6.8-headless.1
+ #Dependencies
+ mc_version=1.20.1
+ forge_version=47.1.3
+--- a/src/main/java/com/direwolf20/laserio/client/blockentityrenders/LaserNodeBERender.java
++++ b/src/main/java/com/direwolf20/laserio/client/blockentityrenders/LaserNodeBERender.java
+@@ -8,7 +8,7 @@
+ import net.minecraft.client.renderer.blockentity.BlockEntityRendererProvider;
+ import org.joml.Vector3f;
+ 
+-import java.awt.*;
++import com.direwolf20.laserio.util.Color;
+ 
+ public class LaserNodeBERender extends BaseLaserBERender<LaserNodeBE> {
+     public static final Vector3f[] offsets = {
+--- a/src/main/java/com/direwolf20/laserio/client/events/RenderGUIOverlay.java
++++ b/src/main/java/com/direwolf20/laserio/client/events/RenderGUIOverlay.java
+@@ -6,7 +6,7 @@
+ import net.minecraft.client.gui.GuiGraphics;
+ import net.minecraft.client.resources.language.I18n;
+ 
+-import java.awt.*;
++import com.direwolf20.laserio.util.Color;
+ 
+ public class RenderGUIOverlay {
+     public static void renderLocation(Font font, GuiGraphics guiGraphics, LaserConnectorAdvBE laserConnectorAdvBE) {
+--- a/src/main/java/com/direwolf20/laserio/client/renderer/BlockOverlayRender.java
++++ b/src/main/java/com/direwolf20/laserio/client/renderer/BlockOverlayRender.java
+@@ -13,7 +13,7 @@
+ import net.minecraftforge.client.event.RenderLevelStageEvent;
+ import org.joml.Matrix4f;
+ 
+-import java.awt.*;
++import com.direwolf20.laserio.util.Color;
+ 
+ public class BlockOverlayRender {
+     public static void renderSelectedBlock(RenderLevelStageEvent event, BlockPos pos, BaseLaserBE be) {
+--- a/src/main/java/com/direwolf20/laserio/client/renderer/RenderUtils.java
++++ b/src/main/java/com/direwolf20/laserio/client/renderer/RenderUtils.java
+@@ -28,7 +28,7 @@
+ import org.joml.Matrix4f;
+ import org.joml.Vector3f;
+ 
+-import java.awt.*;
++import com.direwolf20.laserio.util.Color;
+ import java.util.Queue;
+ import java.util.Set;
+ 
+--- a/src/main/java/com/direwolf20/laserio/client/screens/FilterNBTScreen.java
++++ b/src/main/java/com/direwolf20/laserio/client/screens/FilterNBTScreen.java
+@@ -30,7 +30,7 @@
+ import net.minecraft.world.entity.player.Inventory;
+ import net.minecraft.world.item.ItemStack;
+ 
+-import java.awt.*;
++import com.direwolf20.laserio.util.Color;
+ import java.util.List;
+ import java.util.*;
+ 
+--- a/src/main/java/com/direwolf20/laserio/client/screens/FilterTagScreen.java
++++ b/src/main/java/com/direwolf20/laserio/client/screens/FilterTagScreen.java
+@@ -38,7 +38,7 @@
+ import net.minecraftforge.fluids.capability.IFluidHandlerItem;
+ import net.minecraftforge.registries.ForgeRegistries;
+ 
+-import java.awt.*;
++import com.direwolf20.laserio.util.Color;
+ import java.util.List;
+ import java.util.*;
+ 
+--- a/src/main/java/com/direwolf20/laserio/client/screens/LaserNodeScreen.java
++++ b/src/main/java/com/direwolf20/laserio/client/screens/LaserNodeScreen.java
+@@ -32,7 +32,7 @@
+ import net.minecraft.world.item.ItemStack;
+ import net.minecraft.world.level.block.state.BlockState;
+ 
+-import java.awt.*;
++import com.direwolf20.laserio.util.Color;
+ import java.util.ArrayList;
+ import java.util.List;
+ 
+--- a/src/main/java/com/direwolf20/laserio/client/screens/LaserNodeSettingsScreen.java
++++ b/src/main/java/com/direwolf20/laserio/client/screens/LaserNodeSettingsScreen.java
+@@ -25,7 +25,7 @@
+ import net.minecraftforge.client.gui.widget.ExtendedButton;
+ import net.minecraftforge.client.gui.widget.ForgeSlider;
+ 
+-import java.awt.*;
++import com.direwolf20.laserio.util.Color;
+ import java.util.ArrayList;
+ import java.util.HashMap;
+ import java.util.List;
+--- a/src/main/java/com/direwolf20/laserio/client/screens/widgets/ChannelButton.java
++++ b/src/main/java/com/direwolf20/laserio/client/screens/widgets/ChannelButton.java
+@@ -8,7 +8,7 @@
+ import net.minecraft.network.chat.Component;
+ import net.minecraft.resources.ResourceLocation;
+ 
+-import java.awt.*;
++import com.direwolf20.laserio.util.Color;
+ 
+ public class ChannelButton extends Button {
+     private final ResourceLocation resourceLocation = new ResourceLocation(LaserIO.MODID, "textures/gui/buttons/blankbutton.png");
+--- a/src/main/java/com/direwolf20/laserio/client/screens/widgets/NumberButton.java
++++ b/src/main/java/com/direwolf20/laserio/client/screens/widgets/NumberButton.java
+@@ -8,7 +8,7 @@
+ import net.minecraft.client.gui.components.Button;
+ import net.minecraft.resources.ResourceLocation;
+ 
+-import java.awt.*;
++import com.direwolf20.laserio.util.Color;
+ 
+ public class NumberButton extends Button {
+     private final ResourceLocation resourceLocation = new ResourceLocation(LaserIO.MODID, "textures/gui/buttons/blankbutton.png");
+--- a/src/main/java/com/direwolf20/laserio/common/blockentities/basebe/BaseLaserBE.java
++++ b/src/main/java/com/direwolf20/laserio/common/blockentities/basebe/BaseLaserBE.java
+@@ -16,7 +16,7 @@
+ import net.minecraft.world.phys.AABB;
+ 
+ import javax.annotation.Nonnull;
+-import java.awt.*;
++import com.direwolf20.laserio.util.Color;
+ import java.util.HashSet;
+ import java.util.LinkedList;
+ import java.util.Queue;
+--- a/src/main/java/com/direwolf20/laserio/common/network/packets/PacketChangeColor.java
++++ b/src/main/java/com/direwolf20/laserio/common/network/packets/PacketChangeColor.java
+@@ -7,7 +7,7 @@
+ import net.minecraft.world.level.block.entity.BlockEntity;
+ import net.minecraftforge.network.NetworkEvent;
+ 
+-import java.awt.*;
++import com.direwolf20.laserio.util.Color;
+ import java.util.function.Supplier;
+ 
+ 
+--- a/src/main/java/com/direwolf20/laserio/setup/ClientSetup.java
++++ b/src/main/java/com/direwolf20/laserio/setup/ClientSetup.java
+@@ -28,7 +28,7 @@
+ import net.minecraftforge.fml.common.Mod;
+ import net.minecraftforge.fml.event.lifecycle.FMLClientSetupEvent;
+ 
+-import java.awt.*;
++import com.direwolf20.laserio.util.Color;
+ 
+ @Mod.EventBusSubscriber(modid = LaserIO.MODID, value = Dist.CLIENT, bus = Mod.EventBusSubscriber.Bus.MOD)
+ public class ClientSetup {
+--- /dev/null
++++ b/src/main/java/com/direwolf20/laserio/util/Color.java
+@@ -0,0 +1,76 @@
++package com.direwolf20.laserio.util;
++
++/** Packed sRGB color without AWT or native desktop library initialization. */
++public final class Color {
++    public static final Color WHITE = new Color(255, 255, 255);
++    public static final Color DARK_GRAY = new Color(64, 64, 64);
++    public static final Color BLUE = new Color(0, 0, 255);
++    public static final Color GREEN = new Color(0, 255, 0);
++
++    private final int argb;
++    private final float[] components;
++
++    public Color(int rgb) {
++        this(rgb, false);
++    }
++
++    public Color(int value, boolean hasAlpha) {
++        argb = hasAlpha ? value : value | 0xff000000;
++        components = null;
++    }
++
++    public Color(int red, int green, int blue) {
++        this(red, green, blue, 255);
++    }
++
++    public Color(int red, int green, int blue, int alpha) {
++        checkChannel(red);
++        checkChannel(green);
++        checkChannel(blue);
++        checkChannel(alpha);
++        argb = (alpha << 24) | (red << 16) | (green << 8) | blue;
++        components = null;
++    }
++
++    public Color(float red, float green, float blue, float alpha) {
++        argb = (toChannel(alpha) << 24) | (toChannel(red) << 16)
++                | (toChannel(green) << 8) | toChannel(blue);
++        // Preserve original float precision, matching the former AWT behavior.
++        components = new float[] {red, green, blue};
++    }
++
++    private static int toChannel(float value) {
++        if (!(value >= 0 && value <= 1)) {
++            throw new IllegalArgumentException("Color component must be between 0 and 1");
++        }
++        return (int) (value * 255 + 0.5f);
++    }
++
++    private static void checkChannel(int value) {
++        if (value < 0 || value > 255) {
++            throw new IllegalArgumentException("Color component must be between 0 and 255");
++        }
++    }
++
++    public int getRGB() { return argb; }
++    public int getRed() { return (argb >>> 16) & 255; }
++    public int getGreen() { return (argb >>> 8) & 255; }
++    public int getBlue() { return argb & 255; }
++    public int getAlpha() { return (argb >>> 24) & 255; }
++
++    public float[] getColorComponents(float[] target) {
++        float[] result = target == null ? new float[3] : target;
++        result[0] = components == null ? getRed() / 255f : components[0];
++        result[1] = components == null ? getGreen() / 255f : components[1];
++        result[2] = components == null ? getBlue() / 255f : components[2];
++        return result;
++    }
++
++    @Override
++    public boolean equals(Object other) {
++        return other instanceof Color color && argb == color.argb;
++    }
++
++    @Override
++    public int hashCode() { return argb; }
++}
