@@ -1,0 +1,13 @@
+{
+  "type": "minecraft:crafting_shapeless",
+  "category": "misc",
+  "group": "laserio",
+  "ingredients": [
+    {
+      "item": "laserio:filter_tag"
+    }
+  ],
+  "result": {
+    "item": "laserio:filter_tag"
+  }
+}
