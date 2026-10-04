@@ -14,14 +14,13 @@ import net.minecraftforge.network.NetworkRegistry;
 import net.minecraftforge.network.simple.SimpleChannel;
 
 public class PacketHandler {
-    private static final String PROTOCOL_VERSION = Integer.toString(2);
     private static short index = 0;
 
     public static final SimpleChannel HANDLER = NetworkRegistry.ChannelBuilder
             .named(new ResourceLocation(LaserIO.MODID, "main_network_channel"))
-            .clientAcceptedVersions(PROTOCOL_VERSION::equals)
-            .serverAcceptedVersions(PROTOCOL_VERSION::equals)
-            .networkProtocolVersion(() -> PROTOCOL_VERSION)
+            .clientAcceptedVersions(NetworkCompatibility::accepts)
+            .serverAcceptedVersions(NetworkCompatibility::accepts)
+            .networkProtocolVersion(() -> NetworkCompatibility.PROTOCOL_VERSION)
             .simpleChannel();
 
     public static void register() {

@@ -30,7 +30,7 @@
      manifest {
          attributes([
                  "Specification-Title"     : "laserio",
-@@ -317,3 +315,55 @@
+@@ -317,3 +315,64 @@
  tasks.withType(JavaCompile).configureEach {
      options.encoding = 'UTF-8' // Use the UTF-8 charset for Java compilation
  }
@@ -83,8 +83,17 @@
 +    }
 +}
 +
++tasks.register('verifyNetworkCompatibility', JavaExec) {
++    group = 'verification'
++    description = 'Require the patched handshake and reject legacy or absent protocols.'
++    dependsOn 'verificationClasses', 'reobfJar'
++    classpath = files(tasks.named('jar').flatMap { it.archiveFile }) + sourceSets.verification.output
++    mainClass = 'NetworkCompatibilityTest'
++    jvmArgs '--limit-modules', 'java.base'
++}
++
 +tasks.named('check') {
-+    dependsOn 'verifyColorCompatibility', 'verifyNoDesktop', 'verifyHeadlessJar'
++    dependsOn 'verifyColorCompatibility', 'verifyNoDesktop', 'verifyHeadlessJar', 'verifyNetworkCompatibility'
 +}
 --- a/gradle.properties
 +++ b/gradle.properties
@@ -93,7 +102,7 @@
  org.gradle.daemon=false
  #Mod Info
 -mod_version=1.6.8
-+mod_version=1.6.8-headless.1
++mod_version=1.6.9
  #Dependencies
  mc_version=1.20.1
  forge_version=47.1.3
@@ -218,6 +227,41 @@
  import java.util.HashSet;
  import java.util.LinkedList;
  import java.util.Queue;
+--- /dev/null
++++ b/src/main/java/com/direwolf20/laserio/common/network/NetworkCompatibility.java
+@@ -0,0 +1,12 @@
++package com.direwolf20.laserio.common.network;
++
++/** Requires this patched release on both endpoints during Forge's handshake. */
++public final class NetworkCompatibility {
++    public static final String PROTOCOL_VERSION = "laserio-headless-1.6.9";
++
++    private NetworkCompatibility() {}
++
++    public static boolean accepts(String remoteProtocol) {
++        return PROTOCOL_VERSION.equals(remoteProtocol);
++    }
++}
+--- a/src/main/java/com/direwolf20/laserio/common/network/PacketHandler.java
++++ b/src/main/java/com/direwolf20/laserio/common/network/PacketHandler.java
+@@ -14,14 +14,13 @@
+ import net.minecraftforge.network.simple.SimpleChannel;
+ 
+ public class PacketHandler {
+-    private static final String PROTOCOL_VERSION = Integer.toString(2);
+     private static short index = 0;
+ 
+     public static final SimpleChannel HANDLER = NetworkRegistry.ChannelBuilder
+             .named(new ResourceLocation(LaserIO.MODID, "main_network_channel"))
+-            .clientAcceptedVersions(PROTOCOL_VERSION::equals)
+-            .serverAcceptedVersions(PROTOCOL_VERSION::equals)
+-            .networkProtocolVersion(() -> PROTOCOL_VERSION)
++            .clientAcceptedVersions(NetworkCompatibility::accepts)
++            .serverAcceptedVersions(NetworkCompatibility::accepts)
++            .networkProtocolVersion(() -> NetworkCompatibility.PROTOCOL_VERSION)
+             .simpleChannel();
+ 
+     public static void register() {
 --- a/src/main/java/com/direwolf20/laserio/common/network/packets/PacketChangeColor.java
 +++ b/src/main/java/com/direwolf20/laserio/common/network/packets/PacketChangeColor.java
 @@ -7,7 +7,7 @@

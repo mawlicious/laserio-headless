@@ -364,6 +364,15 @@ tasks.register('verifyHeadlessJar') {
     }
 }
 
+tasks.register('verifyNetworkCompatibility', JavaExec) {
+    group = 'verification'
+    description = 'Require the patched handshake and reject legacy or absent protocols.'
+    dependsOn 'verificationClasses', 'reobfJar'
+    classpath = files(tasks.named('jar').flatMap { it.archiveFile }) + sourceSets.verification.output
+    mainClass = 'NetworkCompatibilityTest'
+    jvmArgs '--limit-modules', 'java.base'
+}
+
 tasks.named('check') {
-    dependsOn 'verifyColorCompatibility', 'verifyNoDesktop', 'verifyHeadlessJar'
+    dependsOn 'verifyColorCompatibility', 'verifyNoDesktop', 'verifyHeadlessJar', 'verifyNetworkCompatibility'
 }

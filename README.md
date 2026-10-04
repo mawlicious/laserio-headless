@@ -18,10 +18,14 @@ not an upstream release. The patch applies to LaserIO; other mods may still use 
 ## Installation
 
 1. Stop the server and back up your world; try a copy first.
-2. Download `laserio-1.6.8-headless.1.jar` from this repository's releases.
+2. Download `laserio-1.6.9.jar` from this repository's releases.
 3. Replace the existing LaserIO jar in both server and client `mods` folders.
    Keep only one LaserIO version installed in each folder.
 4. Start the server and check existing nodes, connections, cards and their colors.
+
+Version 1.6.9 requires the same patched release on both server and clients.
+The channel handshake rejects upstream 1.6.8 and the earlier 1.6.8-headless.1
+release before login. A file rename or mod version label alone cannot do this.
 
 Saved ARGB color integers, block IDs and color packet values remain unchanged.
 The complete original modpack/world has not been tested locally.
@@ -40,6 +44,8 @@ The installable, reobfuscated Forge jar is in `build/libs/`. The build also runs
   float rounding, constants and saved ARGB round trips.
 - Color initialization/save/packet checks with Java's desktop module unavailable.
 - A scan requiring zero AWT/Swing references in all packaged classes.
+- Handshake checks accepting the current protocol and rejecting legacy, missing
+  and unknown protocols.
 
 GitHub Actions runs the same checks on Linux and uploads the built jar as an artifact.
 See [HEADLESS-PATCH.md](HEADLESS-PATCH.md) for the patch scope.
