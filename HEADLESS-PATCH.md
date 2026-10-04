@@ -8,7 +8,9 @@ Changes:
 - Replace every java.awt.Color import with a local packed sRGB Color class.
 - Preserve ARGB encoding in saved block entity NBT and color network packets.
 - Preserve color components and constants used for client rendering.
-- Identify the artifact as 1.6.8-headless.1 and include the upstream MIT license.
+- Identify the artifact as 1.6.9 and include the upstream MIT license.
+- Require the unique laserio-headless-1.6.9 channel protocol on both sides so
+  upstream 1.6.8 and the earlier patched release cannot log in.
 - Remove the unused Parchment build plugin; upstream uses official mappings.
 
 Build with Java 17:
