@@ -12,7 +12,7 @@ Changes:
 - Remove the unused Parchment build plugin; upstream uses official mappings.
 
 Build with Java 17:
-    sh gradlew build --console=plain
+    ./gradlew build --console=plain
 
 The installable, reobfuscated Forge jar is in build/libs/.
 Replace the original LaserIO jar on the server and clients, retaining only one

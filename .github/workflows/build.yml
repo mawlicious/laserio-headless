@@ -20,7 +20,7 @@ jobs:
           java-version: '17'
           cache: gradle
       - name: Build Forge jar and verify headless color compatibility
-        run: sh gradlew build --no-daemon --console=plain
+        run: ./gradlew build --no-daemon --console=plain
       - uses: actions/upload-artifact@v4
         with:
           name: laserio-headless-jar

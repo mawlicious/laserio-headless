@@ -31,7 +31,7 @@ The complete original modpack/world has not been tested locally.
 Install Java 17 and set `JAVA_HOME` to its installation directory, then run:
 
 ```sh
-sh gradlew build --console=plain
+./gradlew build --console=plain
 ```
 
 The installable, reobfuscated Forge jar is in `build/libs/`. The build also runs:

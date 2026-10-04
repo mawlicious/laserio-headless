@@ -319,3 +319,7 @@
 +    @Override
 +    public int hashCode() { return argb; }
 +}
+
+diff --git a/gradlew b/gradlew
+old mode 100644
+new mode 100755
